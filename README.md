@@ -61,7 +61,7 @@ sudo apt-get install qemu-user-static
 ```
 Arch:
 ```
-pacman -S curl wget git nano qemu-user-static dpkg openssl
+pacman -S curl wget git nano qemu-user-static openssl
 ```
 
 Create Directory for Project
@@ -103,7 +103,27 @@ nano apply_binaries.sh
 ```
 Find
 ```
-echo "Extracting the configuration files for the supplied root filesystem to ${LDK_ROOTFS_DIR}"
+	echo "Extracting the NVIDIA user space components to ${LDK_ROOTFS_DIR}"
+	pushd "${LDK_ROOTFS_DIR}" > /dev/null 2>&1
+	tar -I lbzip2 -xpmf "${LDK_NV_TEGRA_DIR}/nvidia_drivers.tbz2"
+	popd > /dev/null 2>&1
+
+	echo "Extracting the BSP test tools to ${LDK_ROOTFS_DIR}"
+	pushd "${LDK_ROOTFS_DIR}" > /dev/null 2>&1
+	tar -I lbzip2 -xpmf "${LDK_NV_TEGRA_DIR}/nv_tools.tbz2"
+	popd > /dev/null 2>&1
+
+	echo "Extracting the NVIDIA gst test applications to ${LDK_ROOTFS_DIR}"
+	pushd "${LDK_ROOTFS_DIR}" > /dev/null 2>&1
+	tar -I lbzip2 -xpmf "${LDK_NV_TEGRA_DIR}/nv_sample_apps/nvgstapps.tbz2"
+	popd > /dev/null 2>&1
+
+	echo "Extracting Weston to ${LDK_ROOTFS_DIR}"
+	pushd "${LDK_ROOTFS_DIR}" > /dev/null 2>&1
+	tar -I lbzip2 -xpmf "${LDK_NV_TEGRA_DIR}/weston.tbz2"
+	popd > /dev/null 2>&1
+
+	echo "Extracting the configuration files for the supplied root filesystem to ${LDK_ROOTFS_DIR}"
 	pushd "${LDK_ROOTFS_DIR}" > /dev/null 2>&1
 	tar -I lbzip2 -xpmf "${LDK_NV_TEGRA_DIR}/config.tbz2"
 	popd > /dev/null 2>&1
@@ -115,25 +135,92 @@ echo "Extracting the configuration files for the supplied root filesystem to ${L
 
 	echo "Extracting the firmwares and kernel modules to ${LDK_ROOTFS_DIR}"
 	( cd "${LDK_ROOTFS_DIR}" ; tar -I lbzip2 -xpmf "${LDK_KERN_DIR}/kernel_supplements.tbz2" )
+
+	echo "Extracting the kernel headers to ${LDK_ROOTFS_DIR}/usr/src"
+	# The kernel headers package can be used on the target device as well as on another host.
+	# When used on the target, it should go into /usr/src and owned by root.
+	# Note that there are multiple linux-headers-* directories; one for use on an
+	# x86-64 Linux host and one for use on the L4T target.
+	EXTMOD_DIR=ubuntu18.04_aarch64
+	KERNEL_HEADERS_A64_DIR="$(tar tf "${LDK_KERN_DIR}/kernel_headers.tbz2" | grep "${EXTMOD_DIR}" | head -1 | cut -d/ -f1)"
+	KERNEL_VERSION="$(echo "${KERNEL_HEADERS_A64_DIR}" | sed -e "s/linux-headers-//" -e "s/-${EXTMOD_DIR}//")"
+	KERNEL_SUBDIR="kernel-$(echo "${KERNEL_VERSION}" | cut -d. -f1-2)"
+	install -o 0 -g 0 -m 0755 -d "${LDK_ROOTFS_DIR}/usr/src"
+	pushd "${LDK_ROOTFS_DIR}/usr/src" > /dev/null 2>&1
+	# This tar is packaged for the host (all files 666, dirs 777) so that when
+	# extracted on the host, the user's umask controls the permissions.
+	# However, we're now installing it into the rootfs, and hence need to
+	# explicitly set and use the umask to achieve the desired permissions.
+	(umask 022 && tar -I lbzip2 --no-same-permissions -xmf "${LDK_KERN_DIR}/kernel_headers.tbz2")
+	# Link to the kernel headers from /lib/modules/<version>/build
+	KERNEL_MODULES_DIR="${LDK_ROOTFS_DIR}/lib/modules/${KERNEL_VERSION}"
+	if [ -d "${KERNEL_MODULES_DIR}" ]; then
+		echo "Adding symlink ${KERNEL_MODULES_DIR}/build --> /usr/src/${KERNEL_HEADERS_A64_DIR}/${KERNEL_SUBDIR}"
+		[ -h "${KERNEL_MODULES_DIR}/build" ] && unlink "${KERNEL_MODULES_DIR}/build" && rm -f "${KERNEL_MODULES_DIR}/build"
+		[ ! -h "${KERNEL_MODULES_DIR}/build" ] && ln -s "/usr/src/${KERNEL_HEADERS_A64_DIR}/${KERNEL_SUBDIR}" "${KERNEL_MODULES_DIR}/build"
+	fi
 ```
+Simply add --keep-directory-symlink for each tar entry)
+or
 Replace with:
 ```
-echo "Extracting the configuration files for the supplied root filesystem to ${LDK_ROOTFS_DIR}"
+	echo "Extracting the NVIDIA user space components to ${LDK_ROOTFS_DIR}"
 	pushd "${LDK_ROOTFS_DIR}" > /dev/null 2>&1
-	tar --keep-directory-symlink -I lbzip2 -xpmf "${LDK_NV_TEGRA_DIR}/config.tbz2"
+	tar -I lbzip2 --keep-directory-symlink -xpmf "${LDK_NV_TEGRA_DIR}/nvidia_drivers.tbz2"
+	popd > /dev/null 2>&1
+
+	echo "Extracting the BSP test tools to ${LDK_ROOTFS_DIR}"
+	pushd "${LDK_ROOTFS_DIR}" > /dev/null 2>&1
+	tar -I lbzip2 --keep-directory-symlink -xpmf "${LDK_NV_TEGRA_DIR}/nv_tools.tbz2"
+	popd > /dev/null 2>&1
+
+	echo "Extracting the NVIDIA gst test applications to ${LDK_ROOTFS_DIR}"
+	pushd "${LDK_ROOTFS_DIR}" > /dev/null 2>&1
+	tar -I lbzip2 --keep-directory-symlink -xpmf "${LDK_NV_TEGRA_DIR}/nv_sample_apps/nvgstapps.tbz2"
+	popd > /dev/null 2>&1
+
+	echo "Extracting Weston to ${LDK_ROOTFS_DIR}"
+	pushd "${LDK_ROOTFS_DIR}" > /dev/null 2>&1
+	tar -I lbzip2 --keep-directory-symlink -xpmf "${LDK_NV_TEGRA_DIR}/weston.tbz2"
+	popd > /dev/null 2>&1
+
+	echo "Extracting the configuration files for the supplied root filesystem to ${LDK_ROOTFS_DIR}"
+	pushd "${LDK_ROOTFS_DIR}" > /dev/null 2>&1
+	tar -I lbzip2 --keep-directory-symlink -xpmf "${LDK_NV_TEGRA_DIR}/config.tbz2"
 	popd > /dev/null 2>&1
 
 	echo "Extracting graphics_demos to ${LDK_ROOTFS_DIR}"
 	pushd "${LDK_ROOTFS_DIR}" > /dev/null 2>&1
-	tar --keep-directory-symlink -I lbzip2 -xpmf "${LDK_NV_TEGRA_DIR}/graphics_demos.tbz2"
+	tar -I lbzip2 --keep-directory-symlink -xpmf "${LDK_NV_TEGRA_DIR}/graphics_demos.tbz2"
 	popd > /dev/null 2>&1
 
 	echo "Extracting the firmwares and kernel modules to ${LDK_ROOTFS_DIR}"
-	( cd "${LDK_ROOTFS_DIR}" ; tar --keep-old-files -I lbzip2 -xpmf "${LDK_KERN_DIR}/kernel_supplements.tbz2" )
+	( cd "${LDK_ROOTFS_DIR}" ; tar -I lbzip2 --keep-directory-symlink -xpmf "${LDK_KERN_DIR}/kernel_supplements.tbz2" )
+
+	echo "Extracting the kernel headers to ${LDK_ROOTFS_DIR}/usr/src"
+	# The kernel headers package can be used on the target device as well as on another host.
+	# When used on the target, it should go into /usr/src and owned by root.
+	# Note that there are multiple linux-headers-* directories; one for use on an
+	# x86-64 Linux host and one for use on the L4T target.
+	EXTMOD_DIR=ubuntu18.04_aarch64
+	KERNEL_HEADERS_A64_DIR="$(tar tf "${LDK_KERN_DIR}/kernel_headers.tbz2" | grep "${EXTMOD_DIR}" | head -1 | cut -d/ -f1)"
+	KERNEL_VERSION="$(echo "${KERNEL_HEADERS_A64_DIR}" | sed -e "s/linux-headers-//" -e "s/-${EXTMOD_DIR}//")"
+	KERNEL_SUBDIR="kernel-$(echo "${KERNEL_VERSION}" | cut -d. -f1-2)"
+	install -o 0 -g 0 -m 0755 -d "${LDK_ROOTFS_DIR}/usr/src"
+	pushd "${LDK_ROOTFS_DIR}/usr/src" > /dev/null 2>&1
+	# This tar is packaged for the host (all files 666, dirs 777) so that when
+	# extracted on the host, the user's umask controls the permissions.
+	# However, we're now installing it into the rootfs, and hence need to
+	# explicitly set and use the umask to achieve the desired permissions.
+	(umask 022 && tar -I lbzip2 --keep-directory-symlink --no-same-permissions -xmf "${LDK_KERN_DIR}/kernel_headers.tbz2")
+	# Link to the kernel headers from /lib/modules/<version>/build
+	KERNEL_MODULES_DIR="${LDK_ROOTFS_DIR}/lib/modules/${KERNEL_VERSION}"
+	if [ -d "${KERNEL_MODULES_DIR}" ]; then
+		echo "Adding symlink ${KERNEL_MODULES_DIR}/build --> /usr/src/${KERNEL_HEADERS_A64_DIR}/${KERNEL_SUBDIR}"
+		[ -h "${KERNEL_MODULES_DIR}/build" ] && unlink "${KERNEL_MODULES_DIR}/build" && rm -f "${KERNEL_MODULES_DIR}/build"
+		[ ! -h "${KERNEL_MODULES_DIR}/build" ] && ln -s "/usr/src/${KERNEL_HEADERS_A64_DIR}/${KERNEL_SUBDIR}" "${KERNEL_MODULES_DIR}/build"
+	fi
 ```
-* This adds --keep-directory-symlinks for RootFS,
---keep-directory-symlink for Graphics,
-and --keep-old-files for Kernel firmwares and modules
 
 
 Next we need to add some lines to the `nv_customize_rootfs.sh` file:
@@ -144,7 +231,7 @@ cd nv_tools/scripts/
 nano nv_customize_rootfs.sh
 ```
 
-Find
+Find (or similar)
 ```
     if [ -d "${LDK_ROOTFS_DIR}/usr/lib/arm-linux-gnueabihf/tegra" ]; then
         ARM_ABI_DIR_ABS="usr/lib/arm-linux-gnueabihf"
@@ -158,7 +245,7 @@ Find
     fi
 ```
 
-Replace with:
+Add Section between *** (Remove '*'s and extra spacing):
 ```
     if [ -d "${LDK_ROOTFS_DIR}/usr/lib/arm-linux-gnueabihf/tegra" ]; then
         ARM_ABI_DIR_ABS="usr/lib/arm-linux-gnueabihf"
@@ -166,8 +253,12 @@ Replace with:
         ARM_ABI_DIR_ABS="usr/lib/arm-linux-gnueabi"
     elif [ -d "${LDK_ROOTFS_DIR}/usr/lib/aarch64-linux-gnu/tegra" ]; then
         ARM_ABI_DIR_ABS="usr/lib/aarch64-linux-gnu"
+********************************************
+    
     elif [ -d "${LDK_ROOTFS_DIR}/usr/lib/tegra" ]; then
         ARM_ABI_DIR="${LDK_ROOTFS_DIR}/usr/lib"
+
+********************************************
     else
         echo "Error: None of Hardfp/Softfp Tegra libs found"
         exit 4
@@ -203,17 +294,11 @@ sudo tar -xpjf nv_sample_apps/nvgstapps.tbz2 -C nv_sample_apps/nvgstapps/ && sud
 cd ../nv_tegra/nvidia_drivers
 ```
 ```
-sudo mv lib/* usr/lib/
-```
-```
-sudo rm -r lib
+sudo cp -r lib/* usr/lib/
 ```
 
 ```
-sudo mv usr/lib/aarch64-linux-gnu/* usr/lib/
-```
-```
-sudo rm -r usr/lib/aarch64-linux-gnu
+sudo cp -r usr/lib/aarch64-linux-gnu/* usr/lib/
 ```
 
 ```
@@ -251,7 +336,7 @@ It should look like this:
 ### Changes to nv_tools Package
 The tegrastats script should be moved from home/ubuntu into the /usr/bin directory. This removes the dependency on a user called ubuntu.
 ```
-cd ../../../nv_tegra/nv_tools
+cd ../nv_tools
 ```
 ```
 mkdir -p usr/bin
@@ -262,10 +347,7 @@ mkdir -p usr/bin
 cd ../../nv_tegra/nv_sample_apps/nvgstapps/
 ```
 ```
-sudo mv usr/lib/aarch64-linux-gnu/* usr/lib/
-```
-```
-sudo rm -r usr/lib/aarch64-linux-gnu
+sudo cp -r usr/lib/aarch64-linux-gnu/* usr/lib/
 ```
 
 ### Finalizing Configuration Changes
@@ -303,7 +385,28 @@ Create a file with `nano`
 sudo nano nvidia-tegra.service
 ```
 
-Then past this in...
+Then paste this in:
+```
+##Location
+## /usr/lib/systemd/system/nvidia-tegra.service
+
+[Unit]
+Description=The NVIDIA tegra init script
+
+[Service]
+type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/bin/nvidia-tegra-init-script
+
+[Install]
+WantedBy=multi-user.target
+```
+
+Now create the nvidia-tegra-init-script:
+```
+nano ../../../bin/nvidia-tegra-init-script
+```
+Paste this in:
 ```
 #!/bin/bash
 
@@ -383,17 +486,6 @@ exit 0
 Now save this with the following command because we use nano: `CTRL` + `X` then `Y` and hit `ENTER`
 
 
-Instructions on how to enable the script are in After First Boot section. If you wish to enable the script before flashing / first boot, create the following symbolic link to enable the service.
-
-* This MUST be executed after apply_binaries, so the nvidia-tegra service is in place.
-```
-cd ../../../../etc/systemd/system/sysinit.target.wants/
-```
-```
-ln -s ../../../../usr/lib/systemd/system/nvidia-tegra.service nvidia-tegra.service
-```
-* This MUST be executed after apply_binaries, so the nvidia-tegra service is in place.
-
 ### Pacman Configuration
 As we have installed a custom kernel to boot linux on the jetson-nano-devkit, it is necessary to update pacman.conf to ignore updates to the kernel package.
 
@@ -449,10 +541,18 @@ You must see `NVIDIA Corp. APX` plugged in you PC
 
 
 Now apply the NVIDIA specific configuration, binaries, and the L4T kernel
+NECESSARY: '--target-overlay' bypasses dpkg to use tarballs
 ```
-sudo ./apply_binaries.sh
+sudo ./apply_binaries.sh --target-overlay
 ```
-Enable nvidia-tegra.service by creating symbolic link, refer to section above
+Instructions on how to enable the script are in After First Boot section. If you wish to enable the script before flashing / first boot, then enable nvidia-tegra.service by creating this symbolic link:
+* This MUST be executed after apply_binaries, so the nvidia-tegra service is in place.
+```
+cd rootfs/etc/systemd/system/sysinit.target.wants/
+```
+```
+ln -s ../../../../usr/lib/systemd/system/nvidia-tegra.service nvidia-tegra.service
+```
 
 Optional: Before Flashing setup the Root Filesystem with pre-configured users and groups. Refer below
 
@@ -462,8 +562,74 @@ sudo ./flash.sh jetson-nano-devkit mmcblk0p1
 ```
 Your device should reboot and prompt you to login. The default login for Arch Linux ARM is `root`/`root`.
 
-## Root Filesystem Customization:
-Before Flashing, after Applying Binaries, setup the Root Filesystem with pre-configured users and groups
+## Pre-configure System:
+Before Flashing lets customize our System:
+We need arch-chroot so:
+```
+pacman -S arch-install-scripts
+```
+Create mount directory:
+```
+sudo mkdir /mnt/Tegra
+```
+Mount rootfs, dev, proc, usr, and (optionally) home
+```
+sudo mount --bind ~/Tegra/Linux_for_Tegra/rootfs /mnt/Tegra
+```
+```
+sudo mount --bind ~/Tegra/Linux_for_Tegra/rootfs/dev /mnt/Tegra/dev
+```
+```
+sudo mount --bind ~/Tegra/Linux_for_Tegra/rootfs/proc /mnt/Tegra/proc
+```
+```
+sudo mount --bind ~/Tegra/Linux_for_Tegra/rootfs/usr /mnt/Tegra/usr
+```
+Mount Home if you plan on customizing dotfiles or something
+```
+sudo mount --bind ~/Tegra/Linux_for_Tegra/rootfs/home /mnt/Tegra/home
+```
+
+Now we arch-chroot
+```
+sudo arch-chroot /mnt/Tegra
+```
+We are now in.
+
+Lets setup users, groups, and passwords:
+```
+useradd -m -g 0 aSkeleton
+```
+This creates a user named aSkeleton added to wheel/root group and create a Home dir, if does not exist.
+
+Now set passwords
+```
+passwd
+```
+^ Changes Root password
+```
+passwd aSkeleton
+```
+Process is the same for Groups: groupadd, groupdel, groupmod
+
+Now lets setup pacman:
+```
+pacman-key --init
+```
+then
+```
+pacman-key --populate
+```
+now upgrade your system
+```
+pacman -Syu
+```
+* ITS VERY IMPORTANT THE LINUX KERNEL (LINUX-AARCH64) IS NOT UPGRADED AT ALL! YOU WILL BREAK YOUR SYSTEM!
+You skipped a step if thats happening: Edit pacman.conf (/etc/pacman.conf) and change to "IgnorePkg=linux-aarch64"
+
+You now have a working, upgraded system! Ready to Flash and immediatly start using your Nvidia Jetson Nano without any further setting up.
+
+Manual/Non-Chroot:
 ```
 cd rootfs/etc
 ```
