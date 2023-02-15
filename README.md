@@ -30,34 +30,9 @@ Only difference is package manager (apt, apt-get vs. pacman) </br>
 
 
 ## Keep your system up to date!
-Debian/Ubuntu:
-```
-sudo apt update
-```
-```
-sudo apt upgrade -y
-```
-```
-sudo apt autoremove -y
-```
-```
-sudo apt autoclean
-```
-
 Arch:
 ```
 pacman -Syu
-```
-Fix issues, Reboot if necessary.
-
-
-Before we begin we need some tools so let's download them
-Debian/Ubuntu:
-```
-sudo apt install curl wget git nano openssl
-```
-```
-sudo apt-get install qemu-user-static
 ```
 Arch:
 ```
@@ -69,37 +44,28 @@ Create Directory for Project
 mkdir Tegra && cd Tegra
 ```
 
-Download the Nvidia Jetson Nano L4T Driver Package (BSP) and extract
+Download the Nvidia Jetson Nano L4T Driver Package (BSP) and Arch-aarch64 RootFS, then extract:
 ```
 wget https://developer.nvidia.com/downloads/remetpack-463r32releasev73t210jetson-210linur3273aarch64tbz2
 ```
 ```
+wget http://os.archlinuxarm.org/os/ArchLinuxARM-aarch64-latest.tar.gz
+```
+* Keep tarballs in case something gets messed up, why re-download?
+```
 sudo tar jxpf Jetson-210_Linux_R32.7.3_aarch64.tbz2
 ```
 ```
-cd Linux_for_Tegra
-```
-* Keep tar in case something gets messed up, why re-download?
-
-Download Arch Linux aarch64 and extract
-```
-cd rootfs
+cd Linux_for_Tegra/rootfs
 ```
 ```
-wget http://os.archlinuxarm.org/os/ArchLinuxARM-aarch64-latest.tar.gz
+sudo tar -xpf ../../ArchLinuxARM-aarch64-latest.tar.gz
 ```
-```
-sudo tar -xpf ArchLinuxARM-aarch64-latest.tar.gz
-```
-* Keep tar in case something gets messed up, why re-download?
 
 
-Now we need to modify some lines in the `apply_binaries.sh` file:
+Modify `apply_binaries.sh` file:
 ```
-cd ..
-```
-```
-nano apply_binaries.sh
+nano ../apply_binaries.sh
 ```
 Find
 ```
@@ -160,7 +126,7 @@ Find
 		[ ! -h "${KERNEL_MODULES_DIR}/build" ] && ln -s "/usr/src/${KERNEL_HEADERS_A64_DIR}/${KERNEL_SUBDIR}" "${KERNEL_MODULES_DIR}/build"
 	fi
 ```
-Simply add --keep-directory-symlink for each tar entry)
+Simply add --keep-directory-symlink for each tar entry
 or
 Replace with:
 ```
@@ -223,12 +189,12 @@ Replace with:
 ```
 
 
-Next we need to add some lines to the `nv_customize_rootfs.sh` file:
+Modify `nv_customize_rootfs.sh` file:
 ```
-cd nv_tools/scripts/
+cd 
 ```
 ```
-nano nv_customize_rootfs.sh
+nano ../nv_tools/scripts/nv_customize_rootfs.sh
 ```
 
 Find (or similar)
@@ -270,7 +236,7 @@ Now save this with the following command because we use nano: `CTRL` + `X` then 
 
 Now we need to create some folders
 ```
-cd ../../nv_tegra
+cd ../nv_tegra
 ```
 ```
 mkdir nvidia_drivers config nv_tools nv_sample_apps/nvgstapps
@@ -545,6 +511,10 @@ NECESSARY: '--target-overlay' bypasses dpkg to use tarballs
 ```
 sudo ./apply_binaries.sh --target-overlay
 ```
+Copy ld-linux-aarch64.so.1 (idk why, but allows boot)
+```
+sudo cp rootfs/usr/lib/ld-linux-aarch64.so.1 rootfs/lib/ld-linux-aarch64.so.1
+```
 Instructions on how to enable the script are in After First Boot section. If you wish to enable the script before flashing / first boot, then enable nvidia-tegra.service by creating this symbolic link:
 * This MUST be executed after apply_binaries, so the nvidia-tegra service is in place.
 ```
@@ -558,7 +528,7 @@ Optional: Before Flashing setup the Root Filesystem with pre-configured users an
 
 Create the image from the rootfs directory and flash the image to the Jetson
 ```
-sudo ./flash.sh jetson-nano-devkit mmcblk0p1
+sudo ./flash.sh jetson-nano-qspi-sd mmcblk0p1
 ```
 Your device should reboot and prompt you to login. The default login for Arch Linux ARM is `root`/`root`.
 
@@ -626,51 +596,6 @@ pacman -Syu
 ```
 * ITS VERY IMPORTANT THE LINUX KERNEL (LINUX-AARCH64) IS NOT UPGRADED AT ALL! YOU WILL BREAK YOUR SYSTEM!
 You skipped a step if thats happening: Edit pacman.conf (/etc/pacman.conf) and change to "IgnorePkg=linux-aarch64"
-
-You now have a working, upgraded system! Ready to Flash and immediatly start using your Nvidia Jetson Nano without any further setting up.
-
-Manual/Non-Chroot:
-```
-cd rootfs/etc
-```
-```
-nano passwd
-```
-Add user to bottom with format:
-```
-userName:EncryptedPassword:UserID(start w/1000):GroupID(root/wheel is 0):UserInfo(FullName,phone,email,extraInfo):HomeDirPath:ShellPath
-```
-IMPORTANT: EncryptedPassword's value is "x", it is defined in 'shadow' (We will modify after)
-```
-exampleAdmin:x:1000:0:Example Admin:/home/admin/:/bin/bash
-```
-Now we generate encrypted password for shadow using openssl:
-
-Create password in password.txt for user and encrypt
-```
-nano password.txt
-```
-```
-openssl passwd -6 password.txt
-```
-Copy output from openssl, and add to section in 'shadow':
-```
-nano shadow
-```
-Edit shadow and add user entry accordingly to formate below:
-```
-userName:EncryptedPasswordHere:LastPassChangeUnixTime:MinDaysPassChange:MaxDaysPassChange:WarnDaysPassChange:DisableInactiveUserDays:ExpirationUnixTime
-```
-```
-exampleAdmin:$6$oEqu9zePqbMKoMGt$ohC2Nq.YGddug.p9egUvbSA7ZVeqpBquUWPYpA9jjXVB8yZR59lBV7q3XfFKj52w9GUrG6RFm67wuU77qqcAk/:19214::::::
-```
-For LastPassChange, just set as something between 19000-19395 (Jan 8, 2022 - Feb 7, 2023)
-
-The process for creating groups is relevatily the same with a group file and a gshadow file.
-
-
-
-
 
 # WORK IN PROGRESS
 
