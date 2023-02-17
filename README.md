@@ -260,11 +260,11 @@ sudo tar -xpjf nv_sample_apps/nvgstapps.tbz2 -C nv_sample_apps/nvgstapps/ && sud
 cd ../nv_tegra/nvidia_drivers
 ```
 ```
-sudo cp -r lib/* usr/lib/
+sudo mv lib/* usr/lib/ && sudo rm -r lib/*
 ```
 
 ```
-sudo cp -r usr/lib/aarch64-linux-gnu/* usr/lib/
+sudo mv usr/lib/aarch64-linux-gnu/* usr/lib/ && sudo rm -r usr/lib/aarch64-linux-gnu/
 ```
 
 ```
@@ -313,7 +313,7 @@ mkdir -p usr/bin
 cd ../../nv_tegra/nv_sample_apps/nvgstapps/
 ```
 ```
-sudo cp -r usr/lib/aarch64-linux-gnu/* usr/lib/
+sudo mv usr/lib/aarch64-linux-gnu/* usr/lib/ && sudo rm -r usr/lib/aarch64-linux-gnu/
 ```
 
 ### Finalizing Configuration Changes
