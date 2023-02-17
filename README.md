@@ -257,7 +257,7 @@ sudo tar -xpjf nv_sample_apps/nvgstapps.tbz2 -C nv_sample_apps/nvgstapps/ && sud
 cd ../nv_tegra/nvidia_drivers
 ```
 ```
-sudo mv lib/* usr/lib/ && sudo rm -r lib/*
+sudo mv lib/* usr/lib/ && sudo rm -r lib/
 ```
 
 ```
@@ -268,14 +268,14 @@ sudo mv usr/lib/aarch64-linux-gnu/* usr/lib/ && sudo rm -r usr/lib/aarch64-linux
 sudo nano etc/nv_tegra_release
 ```
 
-Find
+Find All
 ```
-*/usr/lib/aarch64-linux-gnu/tegra/libnvmm.so
+*/usr/lib/aarch64-linux-gnu/tegra/
 ```
 
 Repalce with:
 ```
-*/usr/lib/tegra/libnvmm.so
+*/usr/lib/tegra/
 ```
 Now save this with the following command because we use nano: `CTRL` + `X` then `Y` and hit `enter`
 
