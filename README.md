@@ -191,9 +191,6 @@ Replace with:
 
 Modify `nv_customize_rootfs.sh` file:
 ```
-cd 
-```
-```
 nano ../nv_tools/scripts/nv_customize_rootfs.sh
 ```
 
