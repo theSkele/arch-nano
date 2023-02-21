@@ -36,7 +36,7 @@ pacman -Syu
 ```
 Arch:
 ```
-pacman -S curl wget git nano qemu-user-static openssl
+pacman -S curl wget git nano qemu-user-static openssl lbzip2
 ```
 
 Create Directory for Project
@@ -367,7 +367,7 @@ WantedBy=multi-user.target
 
 Now create the nvidia-tegra-init-script:
 ```
-nano ../../../bin/nvidia-tegra-init-script
+sudo nano ../../../bin/nvidia-tegra-init-script
 ```
 Paste this in:
 ```
